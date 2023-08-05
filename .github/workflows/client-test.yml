@@ -1,0 +1,32 @@
+name: frontend branch build test
+
+on:
+  pull_request:
+    paths:
+    - 'client/**'
+    branches: ["frontend"]
+  
+jobs:
+  build-test:
+    name: client-pr-test
+    runs-on: ubuntu-20.04
+    defaults:
+      run: 
+        working-directory: ./client
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create DotEnv file 
+        run: |
+          echo "REACT_APP_API_URL=$REACT_APP_API_URL" >> .env.production
+          echo "REACT_APP_KAKAO_API_KEY=$REACT_APP_KAKAO_API_KEY" >> .env.production
+        env:
+          REACT_APP_API_URL: ${{ secrets.APP_API_URL }} 
+          REACT_APP_KAKAO_API_KEY: ${{ secrets.APP_KAKAO_API_KEY }}
+
+      - name: Build
+        run: npm run build

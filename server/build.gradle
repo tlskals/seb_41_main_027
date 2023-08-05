@@ -1,0 +1,150 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '2.7.7'
+	id 'io.spring.dependency-management' version '1.0.15.RELEASE'
+	id "org.asciidoctor.jvm.convert" version "3.3.2"
+	//SonarQube plugin 추가
+	id "org.sonarqube" version "3.5.0.2730"
+	//jacoco (Java Code Coverage) plugin 추가 / jacoco : 프로젝트의 코드 커버리지 계산해주는 plug in
+	id 'jacoco'
+}
+
+group = 'main027'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '11'
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+ext {
+	set('snippetsDir', file("build/generated-snippets"))
+}
+
+configurations {
+	asciidoctorExtensions
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+//	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'com.google.code.gson:gson:2.9.0'
+	compileOnly 'org.projectlombok:lombok'
+	runtimeOnly 'com.h2database:h2'
+	runtimeOnly 'com.mysql:mysql-connector-j'
+	annotationProcessor 'org.projectlombok:lombok'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.security:spring-security-test'
+	implementation 'org.mapstruct:mapstruct:1.5.1.Final'
+	annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.1.Final'
+	testImplementation 'org.springframework.restdocs:spring-restdocs-mockmvc'
+	asciidoctorExtensions 'org.springframework.restdocs:spring-restdocs-asciidoctor'
+
+	//테스트에서 lombok 사용
+	testCompileOnly 'org.projectlombok:lombok'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+
+	// JWT 기능을 위한 jjwt 라이브러리
+	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+	runtimeOnly	'io.jsonwebtoken:jjwt-jackson:0.11.5'
+}
+
+tasks.named('test') {
+	outputs.dir snippetsDir
+	useJUnitPlatform()
+}
+
+tasks.named('asciidoctor') {
+	configurations "asciidoctorExtensions"
+	inputs.dir snippetsDir
+	dependsOn test
+}
+
+task copyDocument(type: Copy) {
+	dependsOn asciidoctor
+	from file("${asciidoctor.outputDir}")
+	into file("src/main/resources/static/docs")
+}
+
+build {
+	dependsOn copyDocument
+}
+
+bootJar {
+	dependsOn copyDocument
+	from ("${asciidoctor.outputDir}") {
+		into 'static/docs'
+	}
+}
+
+test {
+	useJUnitPlatform()
+
+	//현재 동작이 수행된 다음 finalizedBy에 등록된 동작을 수행하겠다.
+	finalizedBy 'jacocoTestReport'
+}
+
+jacoco {
+	toolVersion = "0.8.7"
+}
+
+
+
+//report 산출 포맷 / SonarQube 최신 버전은 xml 파일만 읽도록 설정되어있기 때문에 xml로 출력
+jacocoTestReport {
+	reports {
+		xml.enabled true
+		csv.enabled false
+		html.enabled false
+
+		//현재 동작이 수행된 다음 finalizedBy에 등록된 동작을 수행하겠다.
+		finalizedBy 'jacocoTestCoverageVerification'
+	}
+}
+
+//jacocoTestCoverageVerification{
+//	violationRules {
+//		rule {
+//			//rule 활성 여부
+//			enabled = true
+//			//측정의 큰 단위
+//			element = 'CLASS'
+//
+//			//rule 상세 설정
+//			limit {
+//				//coverage 측정 최소 단위
+//				counter = 'LINE'
+//				value = 'COVEREDRATIO'
+//				//60%이하는 통과시키지 않겠다.
+//				minimum = 0.60
+//			}
+//		}
+//	}
+//}
+
+sonarqube {
+	properties {
+		property "sonar.host.url", "http://localhost:9000"
+		//로그인을 위한 token 데이터 입력
+		property "sonar.login", "squ_f38e07ce6b69aa7bed4a090acfa44b97834cb701"
+		property "sonar.sources", "src"
+		property "sonar.language", "java"
+		property "sonar.sourceEncoding", "UTF-8"
+		property "sonar.profile", "Sonar way"
+		property "sonar.test.inclusions", "**/*Test.java"
+		//Jacoco로 출력한 xml 파일 경로
+		property 'sonar.coverage.jacoco.xmlReportPaths', "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
+	}
+}
